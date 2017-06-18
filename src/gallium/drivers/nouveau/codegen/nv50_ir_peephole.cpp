@@ -23,6 +23,7 @@
 #include "codegen/nv50_ir.h"
 #include "codegen/nv50_ir_target.h"
 #include "codegen/nv50_ir_build_util.h"
+#include "codegen/nv50_ir_sched.h"
 
 extern "C" {
 #include "util/u_math.h"
@@ -3761,6 +3762,8 @@ Program::optimizeSSA(int level)
    RUN_PASS(2, MemoryOpt, run);
    RUN_PASS(2, LocalCSE, run);
    RUN_PASS(0, DeadCodeElim, buryAll);
+
+   RUN_PASS(4, Scheduler, run);
 
    return true;
 }
