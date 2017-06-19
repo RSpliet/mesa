@@ -24,6 +24,7 @@
 #define __NV50_IR_SCHED_H__
 
 #include <list>
+#include <vector>
 
 #include "codegen/nv50_ir.h"
 
@@ -32,7 +33,13 @@ namespace nv50_ir {
 class SchedNode {
 public:
    SchedNode(Instruction *inst);
+   ~SchedNode();
+
    Instruction *inst;
+   std::vector<SchedNode *> childList;
+   std::vector<SchedNode *> parentList;
+   int childCount;
+   int parentCount;
 };
 
 class Scheduler : public Pass {
@@ -42,13 +49,18 @@ public:
 
 private:
    typedef std::list<SchedNode *>::iterator NodeIter;
+   typedef std::list<SchedNode *>::reverse_iterator NodeRIter;
 
    bool visit(BasicBlock *bb);
 
    void addInstructions();
+   void addDep(SchedNode *before, SchedNode *after);
    void calcDeps();
    void emptyBB();
    NodeIter chooseInst();
+
+   inline bool isValueReg(Value *v) const;
+   inline bool isValueWMem(Value *v) const;
 
    std::list<SchedNode *> nodeList;
 

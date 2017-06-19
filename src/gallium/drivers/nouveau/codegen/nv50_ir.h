@@ -495,6 +495,8 @@ class LValue;
 class Symbol;
 class ImmediateValue;
 
+class SchedNode;
+
 struct Storage
 {
    DataFile file;
@@ -896,6 +898,8 @@ public:
    uint32_t sched; // scheduling data (NOTE: maybe move to separate storage)
 
    BasicBlock *bb;
+
+   SchedNode *snode;
 
 protected:
    std::deque<ValueDef> defs; // no gaps !
