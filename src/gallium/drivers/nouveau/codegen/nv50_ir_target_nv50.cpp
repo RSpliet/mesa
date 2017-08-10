@@ -237,6 +237,18 @@ TargetNV50::getFileBanks(DataFile file) const
    return 1;
 }
 
+unsigned int
+TargetNV50::mapFileIdxToBank(DataFile file, uint32_t idx) const
+{
+   return 0;
+}
+
+uint32_t
+TargetNV50::mapBankBitsetToDisableMask(DataFile file, uint32_t banks) const
+{
+   return 0;
+}
+
 uint32_t
 TargetNV50::getSVAddress(DataFile shaderFile, const Symbol *sym) const
 {

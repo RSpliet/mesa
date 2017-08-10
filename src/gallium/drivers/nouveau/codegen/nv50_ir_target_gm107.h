@@ -19,6 +19,9 @@ public:
    virtual bool isReuseSupported(const Instruction *) const;
 
    virtual unsigned int getFileBanks(DataFile) const;
+   virtual unsigned int mapFileIdxToBank(DataFile file, uint32_t idx) const;
+   virtual uint32_t mapBankBitsetToDisableMask(DataFile file,
+                                               uint32_t banks) const;
 
    virtual bool isBarrierRequired(const Instruction *) const;
 

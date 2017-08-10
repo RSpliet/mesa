@@ -280,6 +280,27 @@ TargetNVC0::getFileBanks(DataFile file) const
    return 1;
 }
 
+unsigned int
+TargetNVC0::mapFileIdxToBank(DataFile file, uint32_t idx) const
+{
+   if (file == FILE_GPR)
+      return (idx & 0x1) | (idx & 0x4) >> 1;
+   return 0;
+}
+
+uint32_t
+TargetNVC0::mapBankBitsetToDisableMask(DataFile file, uint32_t banks) const
+{
+   uint32_t mask = 0;
+
+   if (file == FILE_GPR) {
+      mask = (banks & 0x3) * 0x05050505 |
+             (banks & 0xc) * 0x14141414;
+   }
+
+   return mask;
+}
+
 uint32_t
 TargetNVC0::getSVAddress(DataFile shaderFile, const Symbol *sym) const
 {

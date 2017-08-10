@@ -239,6 +239,10 @@ public:
    virtual unsigned int getFileUnit(DataFile) const = 0;
    virtual unsigned int getFileBanks(DataFile) const = 0;
 
+   virtual unsigned int mapFileIdxToBank(DataFile file, uint32_t idx) const = 0;
+   virtual uint32_t mapBankBitsetToDisableMask(DataFile file,
+                                               uint32_t banks) const = 0;
+
    virtual uint32_t getSVAddress(DataFile, const Symbol *) const = 0;
 
 public:

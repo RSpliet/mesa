@@ -65,6 +65,10 @@ public:
    virtual unsigned int getFileUnit(DataFile) const;
    virtual unsigned int getFileBanks(DataFile) const;
 
+   virtual unsigned int mapFileIdxToBank(DataFile file, uint32_t idx) const;
+   virtual uint32_t mapBankBitsetToDisableMask(DataFile file,
+                                               uint32_t banks) const;
+
    virtual uint32_t getSVAddress(DataFile shaderFile, const Symbol *sv) const;
 
 private:

@@ -328,6 +328,18 @@ TargetGM107::getFileBanks(DataFile file) const
    return 1;
 }
 
+unsigned int
+TargetGM107::mapFileIdxToBank(DataFile file, uint32_t idx) const
+{
+   return 0;
+}
+
+uint32_t
+TargetGM107::mapBankBitsetToDisableMask(DataFile file, uint32_t banks) const
+{
+   return 0;
+}
+
 bool
 TargetGM107::runLegalizePass(Program *prog, CGStage stage) const
 {
