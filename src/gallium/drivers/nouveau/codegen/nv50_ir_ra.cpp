@@ -55,7 +55,8 @@ public:
    void periodicMask(DataFile f, uint32_t lock, uint32_t unlock);
    void intersect(DataFile f, const RegisterSet *);
 
-   bool assign(int32_t& reg, DataFile f, unsigned int size);
+   bool assign(int32_t& reg, DataFile f, unsigned int size,
+         int *bankConflicts = NULL);
    void release(DataFile f, int32_t reg, unsigned int size);
    void occupy(DataFile f, int32_t reg, unsigned int size);
    void occupy(const Value *);
@@ -111,6 +112,8 @@ private:
    int last[LAST_REGISTER_FILE + 1];
    int fill[LAST_REGISTER_FILE + 1];
    int banks[LAST_REGISTER_FILE + 1];
+
+   const Target *target;
 };
 
 void
@@ -133,6 +136,7 @@ RegisterSet::init(const Target *targ)
       assert(last[rf] < MAX_REGISTER_FILE_SIZE);
       bits[rf].allocate(last[rf] + 1, true);
    }
+   target = targ;
 }
 
 RegisterSet::RegisterSet(const Target *targ)
@@ -164,9 +168,39 @@ RegisterSet::print(DataFile f) const
 }
 
 bool
-RegisterSet::assign(int32_t& reg, DataFile f, unsigned int size)
+RegisterSet::assign(int32_t& reg, DataFile f, unsigned int size,
+      int *bankConflicts)
 {
-   reg = bits[f].findFreeRange(size);
+   int min_conflicts = INT_MAX;
+   int prev_conflicts = -1;
+   uint32_t bank_bitmap;
+   uint32_t mask = 0xffffffff;
+   reg = -1;
+
+   if (banks[f] > 1 && bankConflicts) {
+      while (mask && reg < 0) {
+         bank_bitmap = 0;
+         min_conflicts = INT_MAX;
+
+         for (int i = 0; i < banks[f]; i++) {
+            if (bankConflicts[i] < min_conflicts &&
+                bankConflicts[i] > prev_conflicts)
+               min_conflicts = bankConflicts[i];
+         }
+
+         for (int i = 0; i < banks[f]; i++) {
+            if (bankConflicts[i] > min_conflicts)
+               bank_bitmap |= (1 << i);
+         }
+
+         mask = target->mapBankBitsetToDisableMask(f, bank_bitmap);
+         reg = bits[f].findFreeRange(size, mask);
+
+         prev_conflicts = min_conflicts;
+      }
+   } else {
+      reg = bits[f].findFreeRange(size);
+   }
    if (reg < 0)
       return false;
    fill[f] = MAX2(fill[f], (int32_t)(reg + size - 1));
@@ -727,6 +761,7 @@ private:
       void addInterference(RIG_Node *);
       void addRegPreference(RIG_Node *);
       void addBankConflict(RIG_Node *);
+      void countBankConflicts(const Target *targ, int *bank_conflicts);
 
       inline LValue *getValue() const
       {
@@ -1414,9 +1449,32 @@ GCRA::checkInterference(const RIG_Node *node, Graph::EdgeIterator& ei)
    }
 }
 
+void
+GCRA::RIG_Node::countBankConflicts(const Target *targ, int *bank_conflicts)
+{
+   uint32_t bank;
+
+   for (int i = 0; i < 32; i++)
+      bank_conflicts[i] = 0;
+
+   for (std::list<RIG_Node*>::iterator it = bankConflicts.begin();
+         it != bankConflicts.end();
+         ++it) {
+      if ((*it)->reg >= 0) {
+         for (int i = 0; i < (*it)->colors; i++) {
+            bank = targ->mapFileIdxToBank((*it)->f, (*it)->reg + i);
+            bank_conflicts[bank]++;
+         }
+      }
+   }
+}
+
 bool
 GCRA::selectRegisters()
 {
+   int bank_conflicts[32];
+   bool ret;
+
    INFO_DBG(prog->dbgFlags, REG_ALLOC, "\nSELECT phase\n");
 
    while (!stack.empty()) {
@@ -1449,7 +1507,13 @@ GCRA::selectRegisters()
       LValue *lval = node->getValue();
       if (prog->dbgFlags & NV50_IR_DEBUG_REG_ALLOC)
          regs.print(node->f);
-      bool ret = regs.assign(node->reg, node->f, node->colors);
+      if (node->f == FILE_GPR && prog->optLevel >= 4) {
+         node->countBankConflicts(prog->getTarget(), bank_conflicts);
+         ret = regs.assign(node->reg, node->f, node->colors,
+                                bank_conflicts);
+      } else {
+         ret = regs.assign(node->reg, node->f, node->colors);
+      }
       if (ret) {
          INFO_DBG(prog->dbgFlags, REG_ALLOC, "assigned reg %i\n", node->reg);
          lval->compMask = node->getCompMask();
