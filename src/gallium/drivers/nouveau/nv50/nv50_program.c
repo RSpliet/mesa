@@ -364,11 +364,9 @@ nv50_program_translate(struct nv50_program *prog, uint16_t chipset,
    info->driverPriv = prog;
 
 #ifdef DEBUG
-   info->optLevel = debug_get_num_option("NV50_PROG_OPTIMIZE", 3);
    info->dbgFlags = debug_get_num_option("NV50_PROG_DEBUG", 0);
-#else
-   info->optLevel = 3;
 #endif
+   info->optLevel = debug_get_num_option("NV50_PROG_OPTIMIZE", 3);
 
    ret = nv50_ir_generate_code(info);
    if (ret) {
