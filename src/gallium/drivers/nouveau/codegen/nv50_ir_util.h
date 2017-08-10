@@ -540,7 +540,8 @@ public:
    }
 
    // Find a range of size (<= 32) clear bits aligned to roundup_pow2(size).
-   int findFreeRange(unsigned int size) const;
+   // Disable mask can narrow search space, used to reduce GPR bank conflicts.
+   int findFreeRange(unsigned int size, uint32_t disable_mask = 0) const;
 
    BitSet& operator|=(const BitSet&);
 

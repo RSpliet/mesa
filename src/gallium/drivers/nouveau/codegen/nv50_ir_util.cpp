@@ -311,24 +311,27 @@ void BitSet::setOr(BitSet *pA, BitSet *pB)
    }
 }
 
-int BitSet::findFreeRange(unsigned int count) const
+int BitSet::findFreeRange(unsigned int count, uint32_t disable_mask) const
 {
    const uint32_t m = (1 << count) - 1;
    int pos = size;
    unsigned int i;
    const unsigned int end = (size + 31) / 32;
+   uint32_t data_masked;
 
    if (count == 1) {
       for (i = 0; i < end; ++i) {
-         pos = ffs(~data[i]) - 1;
+         data_masked = data[i] | disable_mask;
+         pos = ffs(~data_masked) - 1;
          if (pos >= 0)
             break;
       }
    } else
    if (count == 2) {
       for (i = 0; i < end; ++i) {
-         if (data[i] != 0xffffffff) {
-            uint32_t b = data[i] | (data[i] >> 1) | 0xaaaaaaaa;
+         data_masked = data[i] | disable_mask;
+         if (data_masked != 0xffffffff) {
+            uint32_t b = data_masked | (data_masked >> 1) | 0xaaaaaaaa;
             pos = ffs(~b) - 1;
             if (pos >= 0)
                break;
@@ -337,10 +340,11 @@ int BitSet::findFreeRange(unsigned int count) const
    } else
    if (count == 4 || count == 3) {
       for (i = 0; i < end; ++i) {
-         if (data[i] != 0xffffffff) {
+         data_masked = data[i] | disable_mask;
+         if (data_masked != 0xffffffff) {
             uint32_t b =
-               (data[i] >> 0) | (data[i] >> 1) |
-               (data[i] >> 2) | (data[i] >> 3) | 0xeeeeeeee;
+               (data_masked >> 0) | (data_masked >> 1) |
+               (data_masked >> 2) | (data_masked >> 3) | 0xeeeeeeee;
             pos = ffs(~b) - 1;
             if (pos >= 0)
                break;
@@ -356,9 +360,10 @@ int BitSet::findFreeRange(unsigned int count) const
          count = 32;
 
       for (i = 0; i < end; ++i) {
-         if (data[i] != 0xffffffff) {
+         data_masked = data[i] | disable_mask;
+         if (data_masked != 0xffffffff) {
             for (pos = 0; pos < 32; pos += count)
-               if (!(data[i] & (m << pos)))
+               if (!(data_masked & (m << pos)))
                   break;
             if (pos < 32)
                break;
