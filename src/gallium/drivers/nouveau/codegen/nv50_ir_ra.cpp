@@ -724,6 +724,7 @@ private:
 
       void addInterference(RIG_Node *);
       void addRegPreference(RIG_Node *);
+      void addBankConflict(RIG_Node *);
 
       inline LValue *getValue() const
       {
@@ -760,6 +761,7 @@ private:
       Interval livei;
 
       std::list<RIG_Node *> prefRegs;
+      std::list<RIG_Node *> bankConflicts;
    };
 
 private:
@@ -1141,6 +1143,12 @@ GCRA::RIG_Node::addRegPreference(RIG_Node *node)
    prefRegs.push_back(node);
 }
 
+void
+GCRA::RIG_Node::addBankConflict(RIG_Node *node)
+{
+   bankConflicts.push_back(node);
+}
+
 GCRA::GCRA(Function *fn, SpillCodeInserter& spill) :
    func(fn),
    regs(fn->getProgram()->getTarget()),
@@ -1195,6 +1203,7 @@ void
 GCRA::buildRIG(ArrayList& insns)
 {
    std::list<RIG_Node *> values, active;
+   RIG_Node *s1, *s2;
 
    for (std::deque<ValueDef>::iterator it = func->ins.begin();
         it != func->ins.end(); ++it)
@@ -1205,7 +1214,21 @@ GCRA::buildRIG(ArrayList& insns)
       for (int d = 0; insn->defExists(d); ++d)
          if (insn->getDef(d)->rep() == insn->getDef(d))
             insertOrderedTail(values, getNode(insn->getDef(d)->asLValue()));
+
+      for (int s = 0; insn->srcExists(s); ++s) {
+         if (!insn->getSrc(s)->inFile(FILE_GPR))
+            continue;
+         s1 = getNode(insn->getSrc(s)->asLValue());
+         for (int sr = s+1; insn->srcExists(sr); ++sr) {
+            if (!insn->getSrc(sr)->inFile(FILE_GPR))
+               continue;
+            s2 = getNode(insn->getSrc(sr)->asLValue());
+            s1->addBankConflict(s2);
+            s2->addBankConflict(s1);
+         }
+      }
    }
+
    checkList(values);
 
    while (!values.empty()) {
