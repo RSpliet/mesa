@@ -321,6 +321,13 @@ TargetGM107::getReadLatency(const Instruction *insn) const
    return 0;
 }
 
+unsigned int
+TargetGM107::getFileBanks(DataFile file) const
+{
+   // @todo Should this be the same as NVC0?
+   return 1;
+}
+
 bool
 TargetGM107::runLegalizePass(Program *prog, CGStage stage) const
 {

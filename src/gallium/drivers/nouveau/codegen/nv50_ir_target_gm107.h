@@ -18,6 +18,8 @@ public:
    virtual bool isOpSupported(operation, DataType) const;
    virtual bool isReuseSupported(const Instruction *) const;
 
+   virtual unsigned int getFileBanks(DataFile) const;
+
    virtual bool isBarrierRequired(const Instruction *) const;
 
    virtual bool canDualIssue(const Instruction *, const Instruction *) const;

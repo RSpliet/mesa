@@ -272,6 +272,14 @@ TargetNVC0::getFileUnit(DataFile file) const
    return 0;
 }
 
+unsigned int
+TargetNVC0::getFileBanks(DataFile file) const
+{
+   if (file == FILE_GPR)
+      return 4;
+   return 1;
+}
+
 uint32_t
 TargetNVC0::getSVAddress(DataFile shaderFile, const Symbol *sym) const
 {

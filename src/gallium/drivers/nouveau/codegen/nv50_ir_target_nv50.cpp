@@ -230,6 +230,13 @@ TargetNV50::getFileUnit(DataFile file) const
    return 0;
 }
 
+unsigned int
+TargetNV50::getFileBanks(DataFile file) const
+{
+   // @todo GPR might have multiple banks?
+   return 1;
+}
+
 uint32_t
 TargetNV50::getSVAddress(DataFile shaderFile, const Symbol *sym) const
 {

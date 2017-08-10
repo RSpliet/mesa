@@ -110,6 +110,7 @@ private:
 
    int last[LAST_REGISTER_FILE + 1];
    int fill[LAST_REGISTER_FILE + 1];
+   int banks[LAST_REGISTER_FILE + 1];
 };
 
 void
@@ -127,6 +128,7 @@ RegisterSet::init(const Target *targ)
       DataFile f = static_cast<DataFile>(rf);
       last[rf] = targ->getFileSize(f) - 1;
       unit[rf] = targ->getFileUnit(f);
+      banks[rf] = targ->getFileBanks(f);
       fill[rf] = -1;
       assert(last[rf] < MAX_REGISTER_FILE_SIZE);
       bits[rf].allocate(last[rf] + 1, true);

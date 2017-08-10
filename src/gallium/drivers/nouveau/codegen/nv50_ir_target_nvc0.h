@@ -63,6 +63,7 @@ public:
 
    virtual unsigned int getFileSize(DataFile) const;
    virtual unsigned int getFileUnit(DataFile) const;
+   virtual unsigned int getFileBanks(DataFile) const;
 
    virtual uint32_t getSVAddress(DataFile shaderFile, const Symbol *sv) const;
 

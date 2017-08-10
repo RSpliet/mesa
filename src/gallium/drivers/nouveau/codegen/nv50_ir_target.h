@@ -237,6 +237,7 @@ public:
 
    virtual unsigned int getFileSize(DataFile) const = 0;
    virtual unsigned int getFileUnit(DataFile) const = 0;
+   virtual unsigned int getFileBanks(DataFile) const = 0;
 
    virtual uint32_t getSVAddress(DataFile, const Symbol *) const = 0;
 
