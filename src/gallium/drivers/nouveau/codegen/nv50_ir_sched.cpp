@@ -1,5 +1,6 @@
 /*
  * Copyright 2017 Boyan Ding
+ * Copyright 2017 Roy Spliet
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -30,6 +31,7 @@ SchedNode::SchedNode(Instruction *inst)
    this->inst = inst;
    this->childCount = 0;
    this->parentCount = 0;
+   this->depth = -1;
    inst->snode = this;
 }
 
@@ -127,6 +129,43 @@ void Scheduler::calcDeps()
 #undef WRMEM_ID
 }
 
+void Scheduler::calcDepth()
+{
+   std::list<SchedNode *> workList;
+
+   for (NodeIter n = nodeList.begin(); n != nodeList.end(); ++n) {
+      SchedNode *node = *n;
+
+      if (node->childCount == 0) {
+         node->depth = 0;
+         workList.push_back(node);
+      }
+   }
+
+   while (!workList.empty()) {
+      SchedNode *node = workList.front();
+      int depth = node->depth + 1;
+      workList.pop_front();
+
+      for (NodeVecIter p = node->parentList.begin(); p != node->parentList.end(); ++p) {
+         SchedNode *parent = *p;
+
+         if (parent->depth < depth) {
+            parent->depth = depth;
+            workList.push_back(parent);
+         }
+      }
+   }
+
+   /*
+   for (NodeIter n = nodeList.begin(); n != nodeList.end(); ++n) {
+      SchedNode *node = *n;
+
+      INFO("Depth: %i\n", node->depth);
+   }
+   */
+}
+
 void Scheduler::emptyBB()
 {
    Instruction *inst = bb->getEntry();
@@ -148,6 +187,7 @@ bool Scheduler::visit(BasicBlock *bb)
 
    addInstructions();
    calcDeps();
+   calcDepth();
 
    emptyBB();
 

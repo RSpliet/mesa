@@ -40,6 +40,7 @@ public:
    std::vector<SchedNode *> parentList;
    int childCount;
    int parentCount;
+   int depth;
 };
 
 class Scheduler : public Pass {
@@ -49,6 +50,7 @@ public:
 
 private:
    typedef std::list<SchedNode *>::iterator NodeIter;
+   typedef std::vector<SchedNode *>::iterator NodeVecIter;
    typedef std::list<SchedNode *>::reverse_iterator NodeRIter;
 
    bool visit(BasicBlock *bb);
@@ -56,6 +58,7 @@ private:
    void addInstructions();
    void addDep(SchedNode *before, SchedNode *after);
    void calcDeps();
+   void calcDepth();
    void emptyBB();
    NodeIter chooseInst();
 
