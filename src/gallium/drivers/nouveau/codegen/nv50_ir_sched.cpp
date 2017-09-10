@@ -147,7 +147,7 @@ void Scheduler::calcDepth()
       int depth = node->depth + 1;
       workList.pop_front();
 
-      for (NodeVecIter p = node->parentList.begin(); p != node->parentList.end(); ++p) {
+      for (NodeIter p = node->parentList.begin(); p != node->parentList.end(); ++p) {
          SchedNode *parent = *p;
 
          if (parent->depth < depth) {
@@ -166,6 +166,18 @@ void Scheduler::calcDepth()
    */
 }
 
+void Scheduler::initCandidateList()
+{
+   candidateList.clear();
+
+   for (NodeIter n = nodeList.begin(); n != nodeList.end(); ++n) {
+      SchedNode *node = *n;
+
+      if (!node->parentCount)
+         candidateList.push_back(node);
+   }
+}
+
 void Scheduler::emptyBB()
 {
    Instruction *inst = bb->getEntry();
@@ -176,27 +188,79 @@ void Scheduler::emptyBB()
    }
 }
 
-Scheduler::NodeIter Scheduler::chooseInst()
+Scheduler::NodeIter Scheduler::bestInst(NodeIter a, NodeIter b)
 {
-   return nodeList.begin();
+   SchedNode *nodeA;
+   SchedNode *nodeB;
+   SchedNode *lastNode;
+   bool loadA;
+   bool loadB;
+
+   nodeA = *a;
+   nodeB = *b;
+   lastNode = nodeList.back();
+
+   /* Keep BB flow where it is */
+   if (nodeA->inst == lastNode->inst)
+      return b;
+   if (nodeB->inst == lastNode->inst)
+      return a;
+
+   loadA = instIsLoad(nodeA->inst);
+   loadB = instIsLoad(nodeB->inst);
+
+   /* Simple heuristic.
+    * 1) Texload before anything else
+    * 2) Highest depth first */
+   if (loadA && !loadB)
+      return a;
+   if (loadB && !loadA)
+      return b;
+
+   return nodeA->depth >= nodeB->depth ? a : b;
+}
+
+SchedNode *Scheduler::selectInst()
+{
+   NodeIter pick = candidateList.begin();
+   NodeIter i = pick;
+   SchedNode *node;
+
+   for (++i; i != candidateList.end(); ++i) {
+      pick = bestInst(pick, i);
+   }
+
+   node = *pick;
+
+   for (NodeVecIter c = node->childList.begin(); c != node->childList.end(); ++c) {
+      SchedNode *child = *c;
+      child->parentCount--;
+
+      if (child->parentCount == 0)
+         candidateList.push_back(child);
+   }
+
+   candidateList.erase(pick);
+
+   return node;
 }
 
 bool Scheduler::visit(BasicBlock *bb)
 {
+   nodeList.clear();
    this->bb = bb;
 
    addInstructions();
    calcDeps();
    calcDepth();
-
+   initCandidateList();
    emptyBB();
 
-   while (!nodeList.empty()) {
-      //
-      NodeIter ni = chooseInst();
-      nodeList.erase(ni);
+   while (!candidateList.empty()) {
+      INFO("Candidates: %lu\n", candidateList.size());
+      //nodeList.erase(ni);
 
-      SchedNode *node = *ni;
+      SchedNode *node = selectInst();
       bb->insertTail(node->inst);
       delete node;
    }
@@ -224,6 +288,27 @@ bool Scheduler::isValueWMem(Value *v) const
    case FILE_MEMORY_GLOBAL:
    case FILE_MEMORY_SHARED:
    case FILE_MEMORY_LOCAL:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool Scheduler::instIsLoad(Instruction *i) const
+{
+   switch (i->op) {
+   case OP_LOAD:
+   case OP_ATOM:
+   case OP_TEX:
+   case OP_TXB:
+   case OP_TXL:
+   case OP_TXF:
+   case OP_TXQ:
+   case OP_TXD:
+   case OP_TXG:
+   case OP_TXLQ:
+   case OP_TEXCSAA:
+   case OP_TEXPREP:
       return true;
    default:
       return false;

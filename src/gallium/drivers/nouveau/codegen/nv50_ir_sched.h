@@ -37,7 +37,7 @@ public:
 
    Instruction *inst;
    std::vector<SchedNode *> childList;
-   std::vector<SchedNode *> parentList;
+   std::list<SchedNode *> parentList;
    int childCount;
    int parentCount;
    int depth;
@@ -59,13 +59,17 @@ private:
    void addDep(SchedNode *before, SchedNode *after);
    void calcDeps();
    void calcDepth();
+   void initCandidateList();
    void emptyBB();
-   NodeIter chooseInst();
+   NodeIter bestInst(NodeIter a, NodeIter b);
+   SchedNode *selectInst();
 
    inline bool isValueReg(Value *v) const;
    inline bool isValueWMem(Value *v) const;
+   inline bool instIsLoad(Instruction *i) const;
 
    std::list<SchedNode *> nodeList;
+   std::list<SchedNode *> candidateList;
 
    BasicBlock *bb;
 };
