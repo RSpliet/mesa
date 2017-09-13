@@ -23,6 +23,7 @@
 
 #include "codegen/nv50_ir.h"
 #include "codegen/nv50_ir_sched.h"
+#include "codegen/nv50_ir_target.h"
 
 namespace nv50_ir {
 
@@ -32,6 +33,8 @@ SchedNode::SchedNode(Instruction *inst)
    this->childCount = 0;
    this->parentCount = 0;
    this->depth = -1;
+   this->preferredIssueCycle = 0;
+   this->cost = 0;
    inst->snode = this;
 }
 
@@ -47,6 +50,7 @@ void Scheduler::addInstructions()
    for (insn = bb->getEntry(); insn != NULL; insn = next) {
       next = insn->next;
       SchedNode *node = new SchedNode(insn);
+      node->cost = cost(insn);
       nodeList.push_back(node);
    }
 }
@@ -193,8 +197,7 @@ Scheduler::NodeIter Scheduler::bestInst(NodeIter a, NodeIter b)
    SchedNode *nodeA;
    SchedNode *nodeB;
    SchedNode *lastNode;
-   bool loadA;
-   bool loadB;
+   bool cyclePref;
 
    nodeA = *a;
    nodeB = *b;
@@ -206,17 +209,24 @@ Scheduler::NodeIter Scheduler::bestInst(NodeIter a, NodeIter b)
    if (nodeB->inst == lastNode->inst)
       return a;
 
-   loadA = instIsLoad(nodeA->inst);
-   loadB = instIsLoad(nodeB->inst);
+   cyclePref = (nodeA->preferredIssueCycle > this->cycle) |
+               (nodeB->preferredIssueCycle > this->cycle);
 
-   /* Simple heuristic.
-    * 1) Texload before anything else
-    * 2) Highest depth first */
-   if (loadA && !loadB)
+   /* Best preferred issue cycle */
+   if (cyclePref) {
+      if (nodeA->preferredIssueCycle < nodeB->preferredIssueCycle)
+         return a;
+      else if (nodeA->preferredIssueCycle > nodeB->preferredIssueCycle)
+         return b;
+   }
+
+   /* Highest cost first */
+   if (nodeA->cost > nodeB->cost)
       return a;
-   if (loadB && !loadA)
+   else if (nodeB->cost > nodeA->cost)
       return b;
 
+   /* Highest depth */
    return nodeA->depth >= nodeB->depth ? a : b;
 }
 
@@ -235,6 +245,7 @@ SchedNode *Scheduler::selectInst()
    for (NodeVecIter c = node->childList.begin(); c != node->childList.end(); ++c) {
       SchedNode *child = *c;
       child->parentCount--;
+      child->preferredIssueCycle = this->cycle + node->cost;
 
       if (child->parentCount == 0)
          candidateList.push_back(child);
@@ -248,7 +259,9 @@ SchedNode *Scheduler::selectInst()
 bool Scheduler::visit(BasicBlock *bb)
 {
    nodeList.clear();
+   this->cycle = 0;
    this->bb = bb;
+   this->target = bb->getProgram()->getTarget();
 
    addInstructions();
    calcDeps();
@@ -262,6 +275,7 @@ bool Scheduler::visit(BasicBlock *bb)
 
       SchedNode *node = selectInst();
       bb->insertTail(node->inst);
+      this->cycle += target->getLatency(node->inst);
       delete node;
    }
 
@@ -294,6 +308,46 @@ bool Scheduler::isValueWMem(Value *v) const
    }
 }
 
+int Scheduler::cost(Instruction *inst) const
+{
+   switch (inst->op) {
+   case OP_LOAD:
+   case OP_TEX:
+   case OP_TXB:
+   case OP_TXL:
+   case OP_TXF:
+   case OP_TXQ:
+   case OP_TXD:
+   case OP_TXG:
+   case OP_TXLQ:
+   case OP_TEXCSAA:
+   case OP_TEXPREP:
+   case OP_VFETCH:
+      return 400;
+   case OP_LINTERP:
+      return 450;
+   case OP_ATOM:
+      return 600;
+   case OP_MOV:
+      /* Let's pretend movs are free, to push them down */
+      return 0;
+   default:
+      for (unsigned i = 0; inst->srcExists(i); i++) {
+         Value *v = inst->getSrc(i);
+         if (isValueWMem(v))
+            return v->reg.file == FILE_MEMORY_LOCAL ? 40 : 400;
+      }
+
+      for (unsigned i = 0; inst->defExists(i); i++) {
+         Value *v = inst->getDef(i);
+         if (isValueWMem(v))
+            return v->reg.file == FILE_MEMORY_LOCAL ? 25 : 50;
+      }
+   }
+
+   return this->target->getThroughput(inst) + this->target->getLatency(inst);
+}
+
 bool Scheduler::instIsLoad(Instruction *i) const
 {
    switch (i->op) {
@@ -309,6 +363,8 @@ bool Scheduler::instIsLoad(Instruction *i) const
    case OP_TXLQ:
    case OP_TEXCSAA:
    case OP_TEXPREP:
+   case OP_VFETCH:
+   case OP_LINTERP:
       return true;
    default:
       return false;

@@ -41,6 +41,8 @@ public:
    int childCount;
    int parentCount;
    int depth;
+   int preferredIssueCycle;
+   int cost;
 };
 
 class Scheduler : public Pass {
@@ -67,11 +69,14 @@ private:
    inline bool isValueReg(Value *v) const;
    inline bool isValueWMem(Value *v) const;
    inline bool instIsLoad(Instruction *i) const;
+   inline int cost(Instruction *i) const;
 
    std::list<SchedNode *> nodeList;
    std::list<SchedNode *> candidateList;
 
    BasicBlock *bb;
+   int cycle;
+   const Target *target;
 };
 
 } // namespace nv50_ir
