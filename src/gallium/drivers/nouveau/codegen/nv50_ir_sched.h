@@ -43,6 +43,7 @@ public:
    int depth;
    int preferredIssueCycle;
    int cost;
+   int gprDiff;
 };
 
 class Scheduler : public Pass {
@@ -70,6 +71,7 @@ private:
    inline bool isValueWMem(Value *v) const;
    inline bool instIsLoad(Instruction *i) const;
    inline int cost(Instruction *i) const;
+   inline int GPRDiff(Instruction *inst) const;
 
    std::list<SchedNode *> nodeList;
    std::list<SchedNode *> candidateList;

@@ -25,6 +25,8 @@
 #include "codegen/nv50_ir_sched.h"
 #include "codegen/nv50_ir_target.h"
 
+#include <set>
+
 namespace nv50_ir {
 
 SchedNode::SchedNode(Instruction *inst)
@@ -35,6 +37,7 @@ SchedNode::SchedNode(Instruction *inst)
    this->depth = -1;
    this->preferredIssueCycle = 0;
    this->cost = 0;
+   this->gprDiff = 0;
    inst->snode = this;
 }
 
@@ -51,6 +54,7 @@ void Scheduler::addInstructions()
       next = insn->next;
       SchedNode *node = new SchedNode(insn);
       node->cost = cost(insn);
+      node->gprDiff = GPRDiff(insn);
       nodeList.push_back(node);
    }
 }
@@ -227,7 +231,13 @@ Scheduler::NodeIter Scheduler::bestInst(NodeIter a, NodeIter b)
       return b;
 
    /* Highest depth */
-   return nodeA->depth >= nodeB->depth ? a : b;
+   if (nodeA->depth > nodeB->depth)
+      return a;
+   else if (nodeB->depth > nodeA -> depth)
+      return b;
+
+   /* Most positive potential effect on liveness */
+   return nodeA->gprDiff <= nodeB->gprDiff ? a : b;
 }
 
 SchedNode *Scheduler::selectInst()
@@ -235,17 +245,19 @@ SchedNode *Scheduler::selectInst()
    NodeIter pick = candidateList.begin();
    NodeIter i = pick;
    SchedNode *node;
+   int cost;
 
    for (++i; i != candidateList.end(); ++i) {
       pick = bestInst(pick, i);
    }
 
    node = *pick;
+   cost = node->cost;
 
    for (NodeVecIter c = node->childList.begin(); c != node->childList.end(); ++c) {
       SchedNode *child = *c;
       child->parentCount--;
-      child->preferredIssueCycle = this->cycle + node->cost;
+      child->preferredIssueCycle = this->cycle + cost;
 
       if (child->parentCount == 0)
          candidateList.push_back(child);
@@ -322,20 +334,18 @@ int Scheduler::cost(Instruction *inst) const
    case OP_TXLQ:
    case OP_TEXCSAA:
    case OP_TEXPREP:
-   case OP_VFETCH:
-      return 400;
-   case OP_LINTERP:
-      return 450;
-   case OP_ATOM:
       return 600;
-   case OP_MOV:
-      /* Let's pretend movs are free, to push them down */
-      return 0;
+   case OP_VFETCH:
+      return 700;
+   case OP_LINTERP:
+      return 600;
+   case OP_ATOM:
+      return 800;
    default:
       for (unsigned i = 0; inst->srcExists(i); i++) {
          Value *v = inst->getSrc(i);
          if (isValueWMem(v))
-            return v->reg.file == FILE_MEMORY_LOCAL ? 40 : 400;
+            return v->reg.file == FILE_MEMORY_LOCAL ? 40 : 600;
       }
 
       for (unsigned i = 0; inst->defExists(i); i++) {
@@ -345,7 +355,8 @@ int Scheduler::cost(Instruction *inst) const
       }
    }
 
-   return this->target->getThroughput(inst) + this->target->getLatency(inst);
+   return 15;
+   //this->target->getThroughput(inst) + this->target->getLatency(inst);
 }
 
 bool Scheduler::instIsLoad(Instruction *i) const
@@ -369,6 +380,42 @@ bool Scheduler::instIsLoad(Instruction *i) const
    default:
       return false;
    }
+}
+
+// What is the potential difference in liveness for this instruction?
+int Scheduler::GPRDiff(Instruction *inst) const
+{
+   int gprDiff = 0;
+   std::list<uint32_t> regs;
+   bool reg_found;
+
+   for (unsigned i = 0; inst->srcExists(i); i++) {
+      Value *v = inst->getSrc(i);
+      reg_found = false;
+
+      if (v->reg.file != FILE_GPR)
+         continue;
+
+      for (std::list<uint32_t>::iterator n = regs.begin(); n != regs.end(); ++n) {
+         uint32_t val = *n;
+         if (val == v->reg.file)
+            reg_found = true;
+      }
+
+      if (!reg_found) {
+         regs.push_back(v->reg.data.id);
+         gprDiff--;
+      }
+   }
+
+   for (unsigned i = 0; inst->defExists(i); i++) {
+      Value *v = inst->getDef(i);
+
+      if (v->reg.file == FILE_GPR)
+         gprDiff++;
+   }
+
+   return gprDiff;
 }
 
 } // namespace nv50_ir
